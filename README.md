@@ -7,12 +7,13 @@ The script in this folder fixes both and installs the mod.
 ## What the script does
 
 1. Finds your Steam library, the Cyberpunk 2077 folder, and the game's Proton prefix.
-2. Checks the game version and picks the matching NightCoop build from nightcoop.net,
-   verifying its SHA-256 against the site's own release list.
+2. Checks the game version and picks the matching NightCoop build from nightcoop.net
+   (since 0.1.2-beta there is a separate archive per game version), verifying its
+   SHA-256 against the site's own release list.
 3. Backs up your saves and every file it is about to replace into
    `~/nightcoop-backup-<date>/`.
-4. Installs NightCoop, then overlays **RED4ext 1.31** on top of the 1.30 the archive
-   bundles. 1.30 does not work on game patch 2.5.
+4. Installs NightCoop, then overlays **RED4ext 1.31** on top of whatever the archive
+   bundles. Older archives shipped 1.30, which does not work on game patch 2.5.
 5. Installs the **Visual C++ 2022 runtime** into the game's Proton prefix. Proton ships
    a 2020 copy, and RED4ext crashes in it with
    *"RED4ext (error 998) No access to memory location"*. It uses the installer Steam
@@ -44,7 +45,7 @@ save copy (it can be a couple of GB).
 If you already downloaded the archives:
 
 ```bash
-./nightcoop-bazzite-install.sh --nightcoop-zip ~/Downloads/NightCoop-0.1.1-beta.2.zip --red4ext-zip ~/Downloads/red4ext-1.31.0.zip
+./nightcoop-bazzite-install.sh --nightcoop-zip ~/Downloads/NightCoop-0.1.2-beta-2.5.zip --red4ext-zip ~/Downloads/red4ext-1.31.0.zip
 ```
 
 ## Afterwards
@@ -72,7 +73,8 @@ options stay; clear them in Steam if you want.
 ## Good to know
 
 - Everyone in a session needs the same NightCoop build. Only builds with the same
-  protocol number can connect.
+  protocol number can connect. To update when a new build comes out, just run the
+  script again; it backs up and replaces the current one.
 - A major Proton version upgrade rebuilds the prefix and brings the old 2020 runtime
   back. If error 998 returns after such an update, just run the script again; it
   skips what is already done.

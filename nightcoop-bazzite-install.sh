@@ -6,7 +6,7 @@
 # things that break it out of the box on Linux:
 #
 #   1. The NightCoop archive bundles RED4ext 1.30, which does not work on game
-#      patch 2.5. This script overlays RED4ext 1.31 on top of it.
+#      patch 2.5 (newer 2.5 builds bundle 1.31). This script overlays RED4ext 1.31 either way.
 #   2. Proton's prefix ships a 2020 copy of the Microsoft C++ runtime. RED4ext is
 #      built with a 2026 toolset and crashes inside that old runtime with
 #      "RED4ext (error 998) No access to memory location". This script installs
@@ -366,13 +366,13 @@ do_install() {
 
     # ---- pick the NightCoop build
     bold "NightCoop build"
-    local NC_VER NC_URL NC_SHA NC_GAMES NC_PROTO
+    local NC_VER NC_URL NC_SHA NC_GAMES NC_PROTO NC_R4
     if [ -n "$NIGHTCOOP_ZIP" ]; then
         [ -f "$NIGHTCOOP_ZIP" ] || fail "no such file: $NIGHTCOOP_ZIP"
         ok "using local archive $NIGHTCOOP_ZIP"
     fi
     if curl -fsSL --connect-timeout 20 -o "$TMP/releases.json" "$NIGHTCOOP_SITE/releases.json"; then
-        read -r NC_VER NC_URL NC_SHA NC_GAMES NC_PROTO < <(python3 -I - "$TMP/releases.json" "${GAME_VER:-}" "$NIGHTCOOP_SITE" <<'PY'
+        read -r NC_VER NC_URL NC_SHA NC_GAMES NC_PROTO NC_R4 < <(python3 -I - "$TMP/releases.json" "${GAME_VER:-}" "$NIGHTCOOP_SITE" <<'PY'
 import json, sys
 d = json.load(open(sys.argv[1])); gv = sys.argv[2]; site = sys.argv[3]
 rels = [r for r in d.get('releases', []) if not r.get('yanked')]
@@ -380,17 +380,22 @@ def short(v):  # "2.5" matches "2.50"
     return v.rstrip('0').rstrip('.') if '.' in v else v
 match = [r for r in rels if gv and any(short(g) == short(gv) for g in r.get('game', []))]
 pick = (match or rels or [None])[0]
-if not pick: print("none - - - -"); sys.exit(0)
-f = next((x for x in pick.get('files', []) if x.get('kind') == 'mod'), None)
+if not pick: print("none - - - - -"); sys.exit(0)
+# newer releases ship one archive per game version (each file lists its own "game");
+# older ones ship a single archive with no "game" key
+mods = [x for x in pick.get('files', []) if x.get('kind') == 'mod']
+f = next((x for x in mods if gv and any(short(g) == short(gv) for g in x.get('game', []))), None) \
+    or next((x for x in mods if not x.get('game')), None) or (mods[0] if mods else None)
 url = f['url'] if f else '-'
 if url != '-' and not url.startswith('http'): url = site.rstrip('/') + '/' + url.lstrip('/')
-print(pick["version"], url, (f or {}).get("sha256", "-"), ",".join(pick.get("game", [])) or "-", pick.get("protocol", "-"))
+games = ",".join((f or {}).get('game') or pick.get('game', [])) or "-"
+print(pick["version"], url, (f or {}).get("sha256", "-"), games, pick.get("protocol", "-"), (f or {}).get("red4ext", "-"))
 PY
 )
         if [ "$NC_VER" = none ]; then
             warn "the site lists no builds; you need --nightcoop-zip"
         else
-            ok "latest build for this game version: $NC_VER (supports game $NC_GAMES, protocol $NC_PROTO)"
+            ok "latest build for this game version: $NC_VER (for game $NC_GAMES, protocol $NC_PROTO, bundles RED4ext ${NC_R4})"
             case ",$NC_GAMES," in *",${GAME_VER%.0},"*|*",$GAME_VER,"*) ;; *) warn "build $NC_VER does not list game version '$GAME_VER' as supported; it may refuse to load";; esac
         fi
     else
@@ -457,7 +462,7 @@ PY
     [ "$SAVE_BACKUP" = 1 ] && [ -d "$SAVES" ] && info "backup saves  -> $BACKUP/Saved Games ($(du -sh "$SAVES" 2>/dev/null | cut -f1))"
     info "backup files  -> $BACKUP/game and $BACKUP/prefix-runtime"
     info "install       NightCoop $(basename "$NIGHTCOOP_ZIP") into the game folder"
-    info "overlay       RED4ext $RED4EXT_VER (replaces the bundled 1.30)"
+    info "overlay       RED4ext $RED4EXT_VER (replaces whatever the archive bundles)"
     [ "$NEED_RT" = 1 ] && info "run           VC_redist.x64.exe quietly inside the game's Proton prefix"
     [ "$LO" = missing ] && ! steam_running && info "write         launch options: $LAUNCH_OPTS"
     [ "$DRY_RUN" = 1 ] && { echo; ok "dry run finished, nothing changed"; return 0; }
